@@ -1,0 +1,85 @@
+{
+  "users": [
+    {
+      "id": "usr_c8ezii35mj8mgef5",
+      "email": "admin@atlas.local",
+      "name": "Admin",
+      "role": "admin",
+      "passwordHash": "$2a$10$duWDOm0KUV0Bm/5qOT.xd.RTI400O.0siFTXzDqV3Bd35p1tv7Dou",
+      "active": true,
+      "createdAt": "2025-12-16T13:32:00.641Z"
+    },
+    {
+      "id": "usr_hnypc1s5mj8mgef5",
+      "email": "agent@atlas.local",
+      "name": "Operations Agent",
+      "role": "agent",
+      "passwordHash": "$2a$10$6UOUVynmQlw6bNNH9WkFj.NQ7mMP61yhaJKpqESFm/sMn6lS7vP5e",
+      "active": true,
+      "createdAt": "2025-12-16T13:32:00.765Z"
+    },
+    {
+      "id": "usr_un0dovy6mj8mgeil",
+      "email": "customer@atlas.local",
+      "name": "Demo Customer",
+      "role": "customer",
+      "passwordHash": "$2a$10$vA1994/eHUKiFOIXNJDfZOxu2YbmA8u2d6dS7KJEIopPINSSQ4iaG",
+      "active": true,
+      "createdAt": "2025-12-16T13:32:00.890Z"
+    }
+  ],
+  "shipments": [
+    {
+      "id": "shp_mt8xm9l9mj8mwh9z",
+      "trackingNumber": "APE7934073845",
+      "customerName": "Walk-in Customer",
+      "customerEmail": "customer@atlas.local",
+      "origin": "Spain (Madrid)",
+      "destination": "Morocco (Tangier)",
+      "status": "received",
+      "history": [
+        {
+          "at": "2025-12-16T13:45:18.208Z",
+          "status": "received"
+        },
+        {
+          "at": "2025-12-16T13:44:30.840Z",
+          "status": "created",
+          "note": "Shipment created"
+        }
+      ],
+      "createdAt": "2025-12-16T13:44:30.839Z",
+      "updatedAt": "2025-12-16T13:45:18.208Z"
+    },
+    {
+      "id": "shp_3hpn3rjymj8mgem2",
+      "trackingNumber": "APE07933471",
+      "customerName": "Demo Customer",
+      "customerEmail": "customer@atlas.local",
+      "origin": "Spain (Madrid)",
+      "destination": "Morocco (Tangier)",
+      "weightKg": 2.4,
+      "priceEur": 18,
+      "status": "in_transit",
+      "history": [
+        {
+          "at": "2025-12-16T13:32:00.890Z",
+          "status": "created",
+          "note": "Shipment created"
+        },
+        {
+          "at": "2025-12-16T13:32:00.890Z",
+          "status": "received",
+          "note": "Received at origin hub"
+        },
+        {
+          "at": "2025-12-16T13:32:00.890Z",
+          "status": "in_transit",
+          "note": "Departed origin hub"
+        }
+      ],
+      "createdAt": "2025-12-16T13:32:00.890Z",
+      "updatedAt": "2025-12-16T13:32:00.890Z"
+    }
+  ]
+}
