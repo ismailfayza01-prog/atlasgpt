@@ -20,73 +20,6 @@ type ShipmentRow = {
   created_at: string;
 };
 
-function u8ToArrayBuffer(u8: Uint8Array): ArrayBuffer {
-  // Ensure we produce a true ArrayBuffer slice (not SharedArrayBuffer/ArrayBufferLike)
-  return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
-}
-
-async function buildInvoicePdf(shipment: ShipmentRow): Promise<Uint8Array> {
-  const pdf = await PDFDocument.create();
-  const page = pdf.addPage([595.28, 841.89]); // A4
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-
-  const margin = 48;
-  let y = 780;
-
-  const drawLine = (text: string, isBold = false) => {
-    page.drawText(text, {
-      x: margin,
-      y,
-      size: 12,
-      font: isBold ? bold : font,
-      color: rgb(0.12, 0.12, 0.12),
-    });
-    y -= 20;
-  };
-
-  page.drawText("INVOICE", { x: margin, y, size: 22, font: bold, color: rgb(0, 0, 0) });
-  y -= 36;
-
-  drawLine(`Shipment ID: ${shipment.id}`, true);
-  drawLine(`Tracking code: ${shipment.tracking_code}`);
-  drawLine(`Created at: ${new Date(shipment.created_at).toLocaleString()}`);
-  y -= 10;
-
-  drawLine(`Origin: ${shipment.origin}`);
-  drawLine(`Destination: ${shipment.destination}`);
-  drawLine(`Weight (kg): ${shipment.weight_kg ?? "-"}`);
-  y -= 10;
-
-  const amount = shipment.price_amount ?? 0;
-  const currency = shipment.currency ?? "MAD";
-  drawLine(`Amount: ${amount} ${currency}`, true);
-  y -= 10;
-
-  if (shipment.sender_full_name || shipment.sender_id_number) {
-    drawLine("Sender", true);
-    if (shipment.sender_full_name) drawLine(`Full name: ${shipment.sender_full_name}`);
-    if (shipment.sender_id_number) drawLine(`ID number: ${shipment.sender_id_number}`);
-  }
-
-  // Footer line
-  page.drawLine({
-    start: { x: margin, y: 70 },
-    end: { x: 595.28 - margin, y: 70 },
-    thickness: 1,
-    color: rgb(0.85, 0.85, 0.85),
-  });
-  page.drawText("Atlas Parcel Europe", {
-    x: margin,
-    y: 50,
-    size: 10,
-    font,
-    color: rgb(0.35, 0.35, 0.35),
-  });
-
-  return await pdf.save();
-}
-
 export default function InvoicePage() {
   return (
     <RequireAuth>
@@ -97,7 +30,7 @@ export default function InvoicePage() {
 
 function InvoiceInner() {
   const params = useParams<{ shipmentId: string }>();
-  const shipmentId = params?.shipmentId;
+  const shipmentId = params?.shipmentId as string;
 
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState<string | null>(null);
@@ -107,7 +40,7 @@ function InvoiceInner() {
     let alive = true;
     let objectUrl: string | null = null;
 
-    async function run() {
+    (async () => {
       try {
         setLoading(true);
         setErr(null);
@@ -115,18 +48,99 @@ function InvoiceInner() {
 
         const { data, error } = await supabase
           .from("shipments")
-          .select("id,tracking_code,origin,destination,weight_kg,price_amount,currency,sender_full_name,sender_id_number,created_at")
+          .select(
+            "id,tracking_code,origin,destination,weight_kg,price_amount,currency,sender_full_name,sender_id_number,created_at"
+          )
           .eq("id", shipmentId)
           .single();
 
         if (error) throw error;
         const shipment = data as unknown as ShipmentRow;
 
-        const bytes = await buildInvoicePdf(shipment);
+        const pdf = await PDFDocument.create();
+        const page = pdf.addPage([595.28, 841.89]); // A4
+        const font = await pdf.embedFont(StandardFonts.Helvetica);
+        const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-        // FIX: convert to true ArrayBuffer for BlobPart typing
-        const ab = u8ToArrayBuffer(bytes);
+        const margin = 48;
+        let y = 780;
+
+        page.drawText("INVOICE", { x: margin, y, size: 22, font: bold, color: rgb(0, 0, 0) });
+        y -= 36;
+
+        const line = (t: string, isBold = false) => {
+          page.drawText(t, { x: margin, y, size: 12, font: isBold ? bold : font, color: rgb(0.12, 0.12, 0.12) });
+          y -= 20;
+        };
+
+        line(`Shipment ID: ${shipment.id}`, true);
+        line(`Tracking code: ${shipment.tracking_code}`);
+        line(`Created at: ${new Date(shipment.created_at).toLocaleString()}`);
+        y -= 10;
+
+        line(`Origin: ${shipment.origin}`);
+        line(`Destination: ${shipment.destination}`);
+        line(`Weight (kg): ${shipment.weight_kg ?? "-"}`);
+        y -= 10;
+
+        line(`Amount: ${(shipment.price_amount ?? 0).toString()} ${shipment.currency ?? "MAD"}`, true);
+        y -= 10;
+
+        if (shipment.sender_full_name || shipment.sender_id_number) {
+          line("Sender", true);
+          if (shipment.sender_full_name) line(`Full name: ${shipment.sender_full_name}`);
+          if (shipment.sender_id_number) line(`ID number: ${shipment.sender_id_number}`);
+        }
+
+        const bytes = await pdf.save();
+
+        // FIX: make a true ArrayBuffer for Blob
+        const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
         const blob = new Blob([ab], { type: "application/pdf" });
 
         objectUrl = URL.createObjectURL(blob);
-        if (!alive) ret
+        if (!alive) return;
+        setUrl(objectUrl);
+      } catch (e: any) {
+        if (!alive) return;
+        setErr(e?.message ?? "Failed to generate invoice.");
+      } finally {
+        if (!alive) return;
+        setLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [shipmentId]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Invoice</h1>
+          <div className="text-sm text-zinc-600">Shipment: {shipmentId}</div>
+        </div>
+        {url ? (
+          <a href={url} download={`invoice-${shipmentId}.pdf`}>
+            <Button variant="outline">Download PDF</Button>
+          </a>
+        ) : null}
+      </div>
+
+      {loading && <div className="text-sm text-zinc-600">Generating PDF…</div>}
+      {err && <div className="text-sm text-red-600">{err}</div>}
+
+      {url && (
+        <iframe
+          title="Invoice PDF"
+          src={url}
+          className="w-full rounded-xl border border-zinc-200 bg-white"
+          style={{ height: "80vh" }}
+        />
+      )}
+    </div>
+  );
+}
