@@ -7,11 +7,10 @@ export type ButtonVariant =
   | "primary"
   | "secondary"
   | "ghost"
-  | "danger"
-  | "destructive"
   | "outline"
   | "link"
-  // extra variants (safe; prevents future type errors)
+  | "danger"
+  | "destructive"
   | "success"
   | "warn"
   | "default";
@@ -36,11 +35,9 @@ const variants: Record<ButtonVariant, string> = {
   outline: "border border-zinc-200 bg-transparent text-zinc-900 hover:bg-zinc-50",
   link: "bg-transparent text-zinc-900 underline-offset-4 hover:underline",
 
-  // destructive aliases
   danger: "bg-red-600 text-white hover:bg-red-700",
   destructive: "bg-red-600 text-white hover:bg-red-700",
 
-  // extras
   success: "bg-emerald-600 text-white hover:bg-emerald-700",
   warn: "bg-amber-500 text-white hover:bg-amber-600",
   default: "bg-zinc-900 text-white hover:bg-zinc-800",
@@ -53,8 +50,25 @@ const sizes: Record<ButtonSize, string> = {
   icon: "h-9 w-9 p-0",
 };
 
-export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { className, variant = "primary", size = "md", asChild = false, children, ...props },
-  ref
-) {
-  const classes = cn(base, variants
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant = "primary", size = "md", asChild = false, children, ...props }, ref) => {
+    const classes = cn(base, variants[variant], sizes[size], className);
+
+    // Lightweight asChild without extra deps
+    if (asChild && React.isValidElement(children)) {
+      const child = children as React.ReactElement<any>;
+      return React.cloneElement(child, {
+        ...props,
+        className: cn(child.props?.className, classes),
+      });
+    }
+
+    return (
+      <button ref={ref} className={classes} {...props}>
+        {children}
+      </button>
+    );
+  }
+);
+
+Button.displayName = "Button";

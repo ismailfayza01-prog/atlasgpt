@@ -90,9 +90,10 @@ export default function AdminShipments() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Shipments</h1>
-        <Button variant="outline" onClick={() => fetch("/api/auth/logout", { method: "POST" }).then(() => location.href="/")}>
-          Logout
-        </Button>
+        <Button variant="secondary" onClick={() => fetch("/api/auth/logout", { method: "POST" }).then(() => (location.href = "/"))}>
+  Logout
+</Button>
+
       </div>
 
       {err && <div className="text-sm text-red-600">{err}</div>}
