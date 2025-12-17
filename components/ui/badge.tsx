@@ -1,16 +1,31 @@
+"use client";
+
 import * as React from "react";
-import { cn } from "./cn";
+import { cn } from "@/lib/utils";
 
-type Props = React.HTMLAttributes<HTMLSpanElement> & { variant?: "default" | "success" | "warn" | "danger" };
-const styles: Record<NonNullable<Props["variant"]>, string> = {
-  default: "bg-zinc-100 text-zinc-900",
-  success: "bg-emerald-100 text-emerald-800",
-  warn: "bg-amber-100 text-amber-800",
-  danger: "bg-red-100 text-red-800",
-};
+export type BadgeVariant = "default" | "secondary" | "success" | "warn" | "danger";
 
-export function Badge({ className, variant = "default", ...props }: Props) {
+export function Badge({
+  className,
+  variant = "default",
+  ...props
+}: React.HTMLAttributes<HTMLSpanElement> & { variant?: BadgeVariant }) {
+  const styles: Record<BadgeVariant, string> = {
+    default: "bg-zinc-900 text-white",
+    secondary: "bg-zinc-100 text-zinc-900 border border-zinc-200",
+    success: "bg-emerald-600 text-white",
+    warn: "bg-amber-500 text-white",
+    danger: "bg-red-600 text-white",
+  };
+
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium", styles[variant], className)} {...props} />
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
+        styles[variant],
+        className
+      )}
+      {...props}
+    />
   );
 }
