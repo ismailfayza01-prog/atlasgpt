@@ -94,9 +94,8 @@ function InvoiceInner() {
 
         const bytes = await pdf.save();
 
-        // FIX: make a true ArrayBuffer for Blob
-        const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-        const blob = new Blob([ab], { type: "application/pdf" });
+        // FIX: Use Uint8Array directly as BlobPart (avoids ArrayBuffer|SharedArrayBuffer typing)
+        const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
 
         objectUrl = URL.createObjectURL(blob);
         if (!alive) return;
