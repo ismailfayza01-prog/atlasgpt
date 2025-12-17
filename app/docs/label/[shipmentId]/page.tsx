@@ -1,81 +1,136 @@
 "use client";
 
-import React from "react";
+import * as React from "react";
+import { useParams } from "next/navigation";
 import { RequireAuth } from "@/components/auth/RequireAuth";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
-import { createLabelPdf } from "@/lib/pdf";
-import { DocUploader } from "@/components/docs/DocUploader";
-import Link from "next/link";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { Button } from "@/components/ui/button";
 
-export default function LabelDocPage({ params }: { params: { shipmentId: string } }) {
+type ShipmentRow = {
+  id: string;
+  tracking_code: string;
+  origin: string;
+  destination: string;
+  created_at: string;
+};
+
+export default function LabelPage() {
   return (
-    <RequireAuth roles={["admin","agent"]}>
-      <LabelInner shipmentId={params.shipmentId} />
+    <RequireAuth>
+      <LabelInner />
     </RequireAuth>
   );
 }
 
-function LabelInner({ shipmentId }: { shipmentId: string }) {
+function LabelInner() {
+  const params = useParams<{ shipmentId: string }>();
+  const shipmentId = params?.shipmentId as string;
+
   const [loading, setLoading] = React.useState(true);
-  const [bytes, setBytes] = React.useState<Uint8Array | null>(null);
-  const [publicUrl, setPublicUrl] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
+  const [url, setUrl] = React.useState<string | null>(null);
 
   React.useEffect(() => {
+    let alive = true;
+    let objectUrl: string | null = null;
+
     (async () => {
-      setLoading(true); setErr(null);
-      const { data, error } = await supabase.from("shipments").select("id,tracking_code,origin,destination,customer_id").eq("id", shipmentId).single();
-      if (error) { setErr(error.message); setLoading(false); return; }
-      let customerEmail: string | null = null;
-      if ((data as any).customer_id) {
-        const { data: p } = await supabase.from("profiles").select("email").eq("id", (data as any).customer_id).maybeSingle();
-        customerEmail = (p as any)?.email ?? null;
+      try {
+        setLoading(true);
+        setErr(null);
+        setUrl(null);
+
+        const { data, error } = await supabase
+          .from("shipments")
+          .select("id,tracking_code,origin,destination,created_at")
+          .eq("id", shipmentId)
+          .single();
+
+        if (error) throw error;
+        const shipment = data as unknown as ShipmentRow;
+
+        const pdf = await PDFDocument.create();
+        const page = pdf.addPage([400, 600]); // label-ish size
+        const font = await pdf.embedFont(StandardFonts.Helvetica);
+        const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+
+        const x = 28;
+        let y = 560;
+
+        page.drawText("SHIPPING LABEL", { x, y, size: 18, font: bold, color: rgb(0, 0, 0) });
+        y -= 30;
+
+        const line = (t: string, isBold = false) => {
+          page.drawText(t, { x, y, size: 12, font: isBold ? bold : font, color: rgb(0.12, 0.12, 0.12) });
+          y -= 18;
+        };
+
+        line(`Tracking: ${shipment.tracking_code}`, true);
+        y -= 6;
+        line(`From: ${shipment.origin}`);
+        line(`To: ${shipment.destination}`);
+        y -= 6;
+        line(`Created: ${new Date(shipment.created_at).toLocaleString()}`);
+
+        // simple border
+        page.drawRectangle({
+          x: 16,
+          y: 16,
+          width: 368,
+          height: 568,
+          borderColor: rgb(0.85, 0.85, 0.85),
+          borderWidth: 1,
+        });
+
+        const bytes = await pdf.save();
+
+        // FIX: Use Uint8Array as BlobPart (avoids ArrayBufferLike typing issue)
+        const blob = new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+
+        objectUrl = URL.createObjectURL(blob);
+        if (!alive) return;
+        setUrl(objectUrl);
+      } catch (e: any) {
+        if (!alive) return;
+        setErr(e?.message ?? "Failed to generate label.");
+      } finally {
+        if (!alive) return;
+        setLoading(false);
       }
-      const pdf = await createLabelPdf({
-        trackingCode: (data as any).tracking_code,
-        origin: (data as any).origin ?? "",
-        destination: (data as any).destination ?? "",
-        customerEmail,
-      });
-      setBytes(pdf);
-      setLoading(false);
     })();
+
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
   }, [shipmentId]);
 
   return (
     <div className="space-y-4">
-      <div className="text-sm"><Link href="/shipments">← Back to shipments</Link></div>
-      <Card>
-        <CardHeader>
-          <h1 className="text-xl font-semibold">Label PDF</h1>
-          <p className="text-sm text-zinc-600">Generated client-side (pdf-lib), upload to Storage bucket <code>documents</code>.</p>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {loading ? <div className="text-sm text-zinc-600">Generating…</div> : null}
-          {err ? <div className="text-sm text-red-600">{err}</div> : null}
-          <DocUploader
-            title="Label"
-            filename={`label_${shipmentId}.pdf`}
-            bytes={bytes}
-            onUploaded={(url) => setPublicUrl(url)}
-          />
-          {publicUrl && <div className="text-sm">Public URL: <a href={publicUrl} target="_blank" rel="noreferrer">{publicUrl}</a></div>}
-          {bytes && <PdfPreview bytes={bytes} />}
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">Label</h1>
+          <div className="text-sm text-zinc-600">Shipment: {shipmentId}</div>
+        </div>
+        {url ? (
+          <a href={url} download={`label-${shipmentId}.pdf`}>
+            <Button variant="outline">Download PDF</Button>
+          </a>
+        ) : null}
+      </div>
+
+      {loading && <div className="text-sm text-zinc-600">Generating PDF…</div>}
+      {err && <div className="text-sm text-red-600">{err}</div>}
+
+      {url && (
+        <iframe
+          title="Label PDF"
+          src={url}
+          className="w-full rounded-xl border border-zinc-200 bg-white"
+          style={{ height: "80vh" }}
+        />
+      )}
     </div>
   );
-}
-
-function PdfPreview({ bytes }: { bytes: Uint8Array }) {
-  const [url, setUrl] = React.useState<string | null>(null);
-  React.useEffect(() => {
-    const blob = new Blob([bytes], { type: "application/pdf" });
-    const u = URL.createObjectURL(blob);
-    setUrl(u);
-    return () => URL.revokeObjectURL(u);
-  }, [bytes]);
-  if (!url) return null;
-  return <iframe className="w-full h-[600px] rounded-xl border border-zinc-200" src={url} />;
 }
